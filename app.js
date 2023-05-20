@@ -21,29 +21,53 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
+app.use(function (req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept"
+  );
+  next();
+});
+
 app.get("/", function (req, res, next) {
   res.render("index", { title: "Express" });
 });
 
-app.post("/send", function (req, res, next) {
-  let mailOptions = {
-    from: req.body.sender,
-    to: process.env.RECEIVE_EMAIL,
-    subject: `${req.body.name} [${req.body.sender}] | Saw your website. Need to talk`,
-    text: req.body.message,
-  };
+const auth = {
+  type: "gmail",
+  user: process.env.EMAIL,
+  pass: process.env.PASS,
+};
 
-  transporter.sendMail(mailOptions, function (err, data) {
+app.post("/send", async (req, res, next) => {
+  const mailOptions = {
+    from: req.body.sender,
+    to: process.env.RECEIVER_EMAIL,
+    subject: `${req.body.name} [${req.body.sender}] | Saw your website. Need to talk`,
+    html: `Hello Karthik,<br /><br />${req.body.message}<br /><br />Thank you,<br />${req.body.name}`,
+    headers: {
+      "x-priority": "1",
+      "x-msmail-priority": "High",
+      importance: "high",
+    },
+  };
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: auth,
+  });
+
+  transporter.sendMail(mailOptions, (err) => {
     if (err) {
-      console.log("Error " + err);
+      console.log("Error >" + err);
+      res.status(500).send(err);
     } else {
       console.log("Email sent successfully");
-      res.json({ status: "Email sent" });
+      res.status(200).send({ status: "Email sent" });
     }
   });
 });
 
-// catch 404 and forward to error handler
 app.use(function (req, res, next) {
   next(createError(404));
 });
@@ -57,24 +81,6 @@ app.use(function (err, req, res, next) {
   // render the error page
   res.status(err.status || 500);
   res.render("error");
-});
-
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    type: "OAuth2",
-    user: process.env.EMAIL,
-    pass: process.env.PASSWORD,
-    clientId: process.env.OAUTH_CLIENT_ID,
-    clientSecret: process.env.OAUTH_CLIENT_SECRET,
-    refreshToken: process.env.OAUTH_REFRESH_TOKEN,
-  },
-});
-
-transporter.verify((err, success) => {
-  err
-    ? console.log(err)
-    : console.log(`=== Server is ready to take messages: ${success} ===`);
 });
 
 const port = process.env.PORT || 5000;
